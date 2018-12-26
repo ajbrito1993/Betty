@@ -1,0 +1,209 @@
+ package com.example.alexbrito.betty;
+
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.media.Image;
+import android.net.Uri;
+import android.util.Log;
+import android.widget.ImageView;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+
+public class WolframAlphaFetch {
+
+
+    private static final String TAG = "WolframAlphaFetchr";
+    private static final String API_KEY = "YWXHV2-ELJRH47VTP";
+    String result;
+    String jsonString;
+    private Image wolframImage;
+    private ImageView wolframImageView;
+
+
+    public byte[] getUrlBytes(String urlSpec) throws IOException {
+        URL url = new URL(urlSpec);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            InputStream in = connection.getInputStream();
+            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                throw new IOException(connection.getResponseMessage() +
+                        ": with " +
+                        urlSpec);
+            }
+            int bytesRead = 0;
+            byte[] buffer = new byte[1024];
+            while ((bytesRead = in.read(buffer)) > 0) {
+                out.write(buffer, 0, bytesRead);
+            }
+            out.close();
+            return out.toByteArray();
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    public String getUrlString(String urlSpec) throws IOException {
+        return new String(getUrlBytes(urlSpec));
+    }
+
+    public Image getImage(String urtSpec) throws IOException {
+        return null;
+    }
+
+    public Bitmap getUrlBytesImage(String urlSpec) throws IOException {
+        URL url = new URL(urlSpec);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            InputStream in = connection.getInputStream();
+            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                throw new IOException(connection.getResponseMessage() +
+                        ": with " +
+                        urlSpec);
+            }
+            int bytesRead = 0;
+            byte[] buffer = new byte[1024];
+            while ((bytesRead = in.read(buffer)) > 0) {
+                out.write(buffer, 0, bytesRead);
+            }
+
+            Bitmap bmp = BitmapFactory.decodeByteArray(out.toByteArray(), 0, out.toByteArray().length);
+
+            out.close();
+            return bmp;
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    /**
+     * Send query requests to Wolfram API
+     ***/
+
+    public String fetchItems(String userQuery) {
+
+        try {
+            String url = Uri.parse("http://api.wolframalpha.com/v1/result")
+                    .buildUpon()
+                    .appendQueryParameter("appid", API_KEY)
+                    .appendQueryParameter("format", "json")
+                    .appendQueryParameter("i", userQuery)
+                    .appendQueryParameter("width", "500")
+                    .build().toString();
+            Log.i(TAG, "DEBUG: " + url);
+
+            result = getUrlString(url);
+
+            Log.i(TAG, "Received: " + result);
+
+        } catch (Exception ioe) {
+            Log.e(TAG, "Failed to fetch items", ioe);
+        }
+
+        return result;
+    }
+
+
+    public Bitmap fetchItemsBitmap(String userQuery) {
+        Bitmap image = null;
+        try {
+            String url = Uri.parse("http://api.wolframalpha.com/v1/simple")
+                    .buildUpon()
+                    .appendQueryParameter("appid", API_KEY)
+                    .appendQueryParameter("format", "json")
+                    .appendQueryParameter("i", userQuery)
+                    .build().toString();
+            Log.i(TAG, "DEBUG: " + url);
+            image = getUrlBytesImage(url);
+            Log.i(TAG, "Received: " + result);
+
+        } catch (IOException ioe) {
+            Log.e(TAG, "Failed to fetch items", ioe);
+        }
+
+        return image;
+    }
+
+
+    public JSONObject fetchJSONItems(String userQuery) throws JSONException {
+        JSONObject jsonObject = null;
+        ArrayList<FullResult> results = new ArrayList<>();
+        try {
+            String url = Uri.parse("http://api.wolframalpha.com/v2/query")
+                    .buildUpon()
+                    .appendQueryParameter("appid", API_KEY)
+                    .appendQueryParameter("output", "json")
+                    .appendQueryParameter("input", userQuery)
+                    .build().toString();
+            System.out.println(url);
+            String jsonString = getUrlString(url);
+            System.out.println(jsonString);
+            jsonObject = new JSONObject(jsonString);
+            parseJSON(jsonObject);
+            Log.i(TAG, "Received JSON: " + jsonString);
+        } catch (IOException ioe) {
+            Log.e(TAG, "Failed to fetch items", ioe);
+
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+
+        return jsonObject;
+
+    }
+
+
+
+
+    public ArrayList<FullResult> parseJSON(JSONObject jsonBody) throws JSONException {
+
+
+        ArrayList<FullResult> results = new ArrayList<>();
+
+
+        JSONObject queryJSONObject = jsonBody.getJSONObject("queryresult");
+        JSONArray queryJSONArray = queryJSONObject.getJSONArray("pods");
+
+        for (int i = 0; i < queryJSONArray.length(); i++) {
+            JSONObject jsonObject = queryJSONArray.getJSONObject(i);
+
+            String title = jsonObject.getString("title");
+            if (title.equals(""))
+                continue;
+
+            JSONArray jsonSubArray = jsonObject.getJSONArray("subpods");
+            JSONObject jsonSubObject = jsonSubArray.getJSONObject(0);
+
+            String value = jsonSubObject.getString("plaintext");
+            System.out.println(jsonSubArray.length() + " Length of the SubArray" );
+            System.out.println("Values");
+            Log.i(TAG, value);
+
+            if (value.equals(""))
+                continue;
+            FullResult result = new FullResult(title, value);
+            results.add(result);
+
+        }
+
+        for (FullResult o : results){
+            System.out.println("Inside Results " + o);
+
+        }
+        return results;
+    }
+
+
+}
+
